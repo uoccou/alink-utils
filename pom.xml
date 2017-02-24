@@ -295,8 +295,8 @@
 	<distributionManagement>
     <repository>
       <id>internal.repo</id>
-      <name>MyCo Internal Repository</name>
-      <url>Host to Company Repository</url>
+      <name>UOCCOU Internal Repository</name>
+      <url>file:///tmp</url>
     </repository>
   </distributionManagement>
 </project>
