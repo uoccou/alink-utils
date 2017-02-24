@@ -1,0 +1,10 @@
+Manifest-Version: 1.0
+Implementation-Vendor: ArchiveLink
+Implementation-Title: ArchiveLink Instrument
+Implementation-Version: 0.0.1
+Specification-Vendor: ArchiveLink
+Name: net/archivelink/instrument/
+Premain-Class: net.archivelink.instrument.Instrument
+Specification-Title: ArchiveLink Instrument Class
+Specification-Version: 0.0.1
+

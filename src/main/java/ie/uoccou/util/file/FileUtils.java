@@ -1,0 +1,36 @@
+package ie.uoccou.util.file;
+
+import java.io.File;
+
+public class FileUtils {
+	public static final String SEPARATOR = "_";
+	
+	/**
+	 * Given a sized non-null array and a base FQ filename (eg /tmp/myFile, generate a series of filenames in the dir
+	 * of the basename, eg [/tmp/myFile1, /tmp/myFile2, ...]
+	 * 
+	 * @param names
+	 * @param basename
+	 */
+	public static void genFilenames(String[] names, String basename){
+			
+			File f = new File(basename);
+			String filename = f.getName();
+			String dirname = f.getParent();
+			
+			for (int i=0;i<names.length;i++){
+				StringBuilder sb = new StringBuilder();
+				if ( null != dirname ){
+					sb.append( dirname );	
+					sb.append( System.getProperty("file.separator") );
+				}			
+				
+				sb.append(i+1);
+				sb.append(SEPARATOR);
+				sb.append(filename);
+				names[i] = sb.toString();
+			}
+			
+			
+		}
+}

@@ -1,0 +1,10 @@
+package net.archivelink.util.file;
+
+import java.util.List;
+
+public interface DelimFileRecordPrinter extends FileRecordPrinter {
+	public char getDelim();
+	public void setDelim(char c);
+	public void output(List<String> fields);
+	public void output(String[] fields);
+}

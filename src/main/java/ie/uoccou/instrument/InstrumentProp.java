@@ -1,0 +1,22 @@
+package ie.uoccou.instrument;
+
+import java.lang.instrument.Instrumentation;
+import java.util.Properties;
+public class InstrumentProp {  
+     public InstrumentProp() {
+		super();
+		// TODO Auto-generated constructor stub
+	}
+
+     private static final String KEY = "my.instrumentation";
+     public static void premain(String options, Instrumentation inst) {
+         Properties props = System.getProperties();
+         if(props.get(KEY) == null)
+            props.put(KEY, inst);
+     }
+
+     public static Instrumentation getInstrumentation() { 
+        return (Instrumentation)System.getProperties().get(KEY);
+     }
+
+ }  

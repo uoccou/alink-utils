@@ -1,0 +1,46 @@
+package ie.uoccou.util.format;
+
+import java.text.ParseException;
+import java.util.Locale;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.format.Formatter;
+
+
+/**
+ * Formatter SPI that gets used with @TruncateFormat
+ * @author ultan
+ *
+ */
+public class StringTruncater implements Formatter<String> {
+	private String length = DbColumns.LEN_DEFAULT;
+	protected static final Logger logger = LoggerFactory.getLogger(StringTruncater.class);
+	public StringTruncater() {
+	    super();
+	    // TODO Auto-generated constructor stub
+    }
+
+	public StringTruncater(String length) {
+	    super();
+	    try {
+	    if ( length != null && Integer.parseInt(length) >= 0)
+	    	this.length = length;
+	    } catch (Exception e){
+	    	logger.error("Exception setting truncater length, using default (" + DbColumns.LEN_DEFAULT + ") - " + e.toString() );
+	    }
+    }
+
+	
+	
+	//@Override
+	public String print(String text, Locale locale) {
+		return ie.uoccou.util.format.Formatter.truncate(text,Integer.parseInt(this.length));
+	}
+
+	//@Override
+	public String parse(String text, Locale locale) throws ParseException {
+		return ie.uoccou.util.format.Formatter.truncate(text,Integer.parseInt(this.length));
+	}
+
+}

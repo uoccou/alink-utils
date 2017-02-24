@@ -1,0 +1,753 @@
+package net.archivelink.util.format;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Method;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.commons.lang.WordUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class Formatter {
+
+	private Formatter() {
+
+	}
+
+	private static final Formatter f = new Formatter();
+
+	public static Formatter getFormatter() {
+		return f;
+	}
+
+	public class Mapper {
+		// nicked from VelocityMailTemplater
+		Mapper() {
+		};
+
+		private void populate(Map<String, Object> context, String key, Map m) {
+
+			Object v = m.get(key);
+			if (v instanceof String) {// do a simple put
+				update(context, (String) key, m.get(key));
+				// context.put((String)key, m.get(key));
+				logger.debug("Added (map): " + key + " - " + (String) v);
+			} else if (v instanceof String[]) {// do a an array put
+				populate(context, (String) key, (String[]) v);
+			}
+			// else if (v instanceof List) {// recurse
+			// populateContext(context, (List) v);
+			// }
+
+		}
+
+		protected void populate(Map<String, Object> context,
+		        Map<String, String[]> model) {
+			// TODO Auto-generated method stub
+			if (null != context && null != model) {
+				Set<String> keys = model.keySet();
+				for (String key : keys) {
+					String[] values = model.get(key);
+					context.put(key, values);
+					// not entirely neccessary
+					populate(context, key, values);
+				}
+			}
+
+		}
+
+		/**
+		 * populate context from an array of things
+		 * 
+		 * @param context
+		 * @param key
+		 * @param values
+		 */
+		private void populate(Map<String, Object> context, String key,
+		        String[] values) {
+			if (null != values && values.length > 1) {
+
+				int count = 1;
+				for (String val : values) {
+					update(context, key + count, val);
+					// context.put(key+count, val);
+					logger.debug("Added String[] : " + key + count + " - "
+					        + val);
+					count++;
+				}
+			} else {
+				update(context, key, values[0]);
+				// context.put(key,values[0]);
+			}
+		}
+
+		/**
+		 * add a property to the context, if its not null/empty Use static
+		 * Formatter call to determine formatting
+		 * 
+		 * @param ctx
+		 *            the velocity context to put the name-value
+		 * @param property
+		 *            the name of the property
+		 * @param value
+		 *            should be a single entity, not an array or collection -
+		 *            use <code<populateContext()</code> for those
+		 */
+		protected void update(Map<String, Object> context, String property,
+		        Object value) {
+
+			if (property != null && value != null) {
+				String val = value.toString();
+				if (null != val && val.length() > 0)
+					context.put(property, val);
+			} else {
+				logger.debug("Empty property passed, not adding to Context ");
+			}
+
+		}
+	}
+
+	protected static final Logger logger = LoggerFactory
+	        .getLogger(Formatter.class);
+	public static final String DEF_SPLIT_CHARS = " ,|;\t";
+	public static final String DATE_SHORT_FORMAT = "MM/dd/yyyy";
+	public static final String DATE_SHORT_NOSEP__FORMAT = "MMddyyyy";
+	public static final String DATE_SHORT_NOSEP_REVERSE_FORMAT = "yyyyMMdd";
+	private static final Pattern PATTERN = Pattern.compile("&( *)([a-zA-Z])");
+	public static String[] toArray(String ccList) {
+		// TODO Auto-generated method stub
+		String[] elems = null;
+
+		if (null != ccList) {
+			String trimmed = ccList.trim();
+			String stripped = null;
+			// remove leading and trailing seps
+			if (DEF_SPLIT_CHARS.contains(String.valueOf(trimmed.charAt(0))))
+				stripped = trimmed.substring(1);
+			else
+				stripped = trimmed;
+
+			elems = stripped.split("[" + DEF_SPLIT_CHARS + "]", 0);
+		}
+		return elems;
+	}
+
+	public static String toCSV(String[] ccList) {
+		// TODO Auto-generated method stub
+		StringBuilder sb = null;
+		String rc = null;
+		if (null != ccList && ccList.length > 0) {
+			int count = 0;
+			int len = ccList.length;
+			sb = new StringBuilder();
+			for (String s : ccList) {
+				count++;
+				sb.append(s);
+				if (count != len)
+					sb.append(",");
+
+			}
+			rc = sb.toString();
+		}
+		return rc;
+	}
+
+	public static String formatSBProperty(String property, String value) {
+
+		String rc = "";
+		if (null != property) {
+
+			if (null != value) {
+
+				if (property.contains("SlotDateTime")) {
+					rc = getLongDateTime(value);
+				} 
+				else if ( property.endsWith("TimeSlot") ){
+					rc = getMappedTimeSlot(value);
+				}
+				// else if ( property.equalsIgnoreCase("DispatchBrand")){
+				// rc = getCapitalisedBrand(value);
+				// }
+				// products now capitalised ok in db, no need to fix case
+				// else if ( property.equalsIgnoreCase("DispatchProduct")){
+				// rc = getCapitalisedProduct(value);
+				// }
+				else {
+					rc = value;
+				}
+
+			}
+
+		}
+
+		return rc;
+
+	}
+
+	protected static String getLongDateTime(String value) {
+		// SimpleDateFormat can be used to control the date/time display format:
+		// E (day of week): 3E or fewer (in text xxx), >3E (in full text)
+		// M (month): M (in number), MM (in number with leading zero)
+		// 3M: (in text xxx), >3M: (in full text full)
+		// h (hour): h, hh (with leading zero)
+		// m (minute)
+		// s (second)
+		// a (AM/PM)
+		// H (hour in 0 to 23)
+		// z (time zone)
+
+		// eg Mon, 20 Feb 2012
+		SimpleDateFormat sbDateFormatter     = new SimpleDateFormat("EE, dd MMM yyyy");
+		SimpleDateFormat userReadableFormat  = new SimpleDateFormat("EEEE, MMMM dd yyyy");
+		String apptDateStr = "";
+		try {
+			// catch crap dates
+			// Date d = sbDateFormatter.parse( value );
+			apptDateStr = userReadableFormat.format(sbDateFormatter.parse( value ));
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			apptDateStr = value.toString();
+		}
+
+		return apptDateStr;
+	}
+	public static String getShortSQLDate(String value) {
+		// SimpleDateFormat can be used to control the date/time display format:
+		// E (day of week): 3E or fewer (in text xxx), >3E (in full text)
+		// M (month): M (in number), MM (in number with leading zero)
+		// 3M: (in text xxx), >3M: (in full text full)
+		// h (hour): h, hh (with leading zero)
+		// m (minute)
+		// s (second)
+		// a (AM/PM)
+		// H (hour in 0 to 23)
+		// z (time zone)
+
+		// eg Mon, 20 Feb 2012
+		SimpleDateFormat sbDateFormatter     = new SimpleDateFormat(DATE_SHORT_NOSEP_REVERSE_FORMAT);
+		//SimpleDateFormat userReadableFormat  = new SimpleDateFormat("EEEE, MMMM dd yyyy");
+		String apptDateStr = "";
+		try {
+			// catch crap dates
+			// Date d = sbDateFormatter.parse( value );
+			apptDateStr = sbDateFormatter.format(sbDateFormatter.parse( value ));
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			apptDateStr = value.toString();
+		}
+
+		return apptDateStr;
+	}
+	public static String getShortDate(String value) {
+	
+		SimpleDateFormat sbDateFormatter     = new SimpleDateFormat(DATE_SHORT_NOSEP__FORMAT );
+		//SimpleDateFormat userReadableFormat  = new SimpleDateFormat("EEEE, MMMM dd yyyy");
+		String apptDateStr = "";
+		try {
+			// catch crap dates
+			// Date d = sbDateFormatter.parse( value );
+			apptDateStr = sbDateFormatter.format(sbDateFormatter.parse( value ));
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			apptDateStr = value.toString();
+		}
+
+		return apptDateStr;
+	}
+	public static String getShortDate(Date value) {
+		// SimpleDateFormat can be used to control the date/time display format:
+		// E (day of week): 3E or fewer (in text xxx), >3E (in full text)
+		// M (month): M (in number), MM (in number with leading zero)
+		// 3M: (in text xxx), >3M: (in full text full)
+		// h (hour): h, hh (with leading zero)
+		// m (minute)
+		// s (second)
+		// a (AM/PM)
+		// H (hour in 0 to 23)
+		// z (time zone)
+
+		// eg Mon, 20 Feb 2012
+		SimpleDateFormat sbDateFormatter     = new SimpleDateFormat(DATE_SHORT_NOSEP__FORMAT );
+		//SimpleDateFormat userReadableFormat  = new SimpleDateFormat("EEEE, MMMM dd yyyy");
+		String apptDateStr = null;
+		
+		apptDateStr = sbDateFormatter.format(value);
+		
+		return apptDateStr;
+	}
+	public static Date getDateShortSQLDate(String value) {
+		// SimpleDateFormat can be used to control the date/time display format:
+		// E (day of week): 3E or fewer (in text xxx), >3E (in full text)
+		// M (month): M (in number), MM (in number with leading zero)
+		// 3M: (in text xxx), >3M: (in full text full)
+		// h (hour): h, hh (with leading zero)
+		// m (minute)
+		// s (second)
+		// a (AM/PM)
+		// H (hour in 0 to 23)
+		// z (time zone)
+
+		// eg Mon, 20 Feb 2012
+		SimpleDateFormat sbDateFormatter     = new SimpleDateFormat(DATE_SHORT_NOSEP_REVERSE_FORMAT);
+		//SimpleDateFormat userReadableFormat  = new SimpleDateFormat("EEEE, MMMM dd yyyy");
+		Date d = null;
+		try {
+			// catch crap dates
+			// Date d = sbDateFormatter.parse( value );
+			d = sbDateFormatter.parse( value );
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			
+		}
+
+		return d;
+	}
+	public static String getShortSQLDate(Date value) {
+		// SimpleDateFormat can be used to control the date/time display format:
+		// E (day of week): 3E or fewer (in text xxx), >3E (in full text)
+		// M (month): M (in number), MM (in number with leading zero)
+		// 3M: (in text xxx), >3M: (in full text full)
+		// h (hour): h, hh (with leading zero)
+		// m (minute)
+		// s (second)
+		// a (AM/PM)
+		// H (hour in 0 to 23)
+		// z (time zone)
+
+		// eg Mon, 20 Feb 2012
+		SimpleDateFormat sbDateFormatter     = new SimpleDateFormat(DATE_SHORT_NOSEP_REVERSE_FORMAT);
+		//SimpleDateFormat userReadableFormat  = new SimpleDateFormat("EEEE, MMMM dd yyyy");
+		String apptDateStr = null;
+		
+		apptDateStr = sbDateFormatter.format(value);
+		
+		return apptDateStr;
+	}
+
+	public static String getMappedTimeSlot(String value) {
+		String timeSlot = "";
+
+		if (value.toString().compareTo("1") == 0)
+			timeSlot = "8AM - 12PM";
+		else if (value.toString().compareTo("2") == 0)
+			timeSlot = "Noon - 5PM";
+		else if (value.toString().compareTo("4") == 0)
+			timeSlot = "5PM - 8PM";
+		else
+			timeSlot = value.toString();
+
+		return timeSlot;
+	}
+
+	protected static String getCapitalisedBrand(String value) {
+		String rc = "";
+
+		if (null != value) {
+			// normalise to lowercase
+			rc = capitaliseAll(value);
+		} else {
+			rc = value;
+		}
+
+		
+		return rc;
+	}
+	/**
+	 * capitalise all items in a CSV list
+	 * @param value
+	 * @return
+	 */
+	public static String getCapitalisedBrandCSV(String value){
+		String rc = "";
+		
+		if ( null != value ){
+			//normalise to lowercase
+			rc = capitaliseAllCSV( value );
+		} else {			
+			rc = value;
+		}
+			
+		
+		return rc;
+	}
+	/**
+	 * capitalsie a list of values in a string
+	 * @param value
+	 * @return
+	 */
+	private static String capitaliseAllCSV(String value) {
+		String rc="";
+		
+		if ( null != value ){
+			
+			final String SPACE=" ";
+			final String COMMA=",";
+			final String SPACE_OR_COMMA="[ ,]";
+			
+			//@TODO - what about names with dash or other delim between words ?
+			String lc = value.toLowerCase();
+			//find multiple tokens
+			String[] items = lc.split(COMMA);
+			String[] newItems = new String[items.length];
+			int count = 0;
+			for ( String s : items) {
+				newItems[count] = capitaliseAll(s);
+				count++;
+			}
+			StringBuilder sb = new StringBuilder();
+			boolean afterFirst=false;
+        	for( String s : newItems){
+        		if (afterFirst)
+        			sb.append(COMMA);
+        		sb.append(s);
+        		afterFirst=true;
+        	}
+        	rc = sb.toString();
+		}
+		
+		return rc;
+	}
+
+	private static String capitaliseAll(String value) {
+		String rc = "";
+
+		if (null != value) {
+
+			final String SPACE = " ";
+
+			String lc = value.toLowerCase();
+			// find multiple tokens
+			String[] vals = lc.split(SPACE);
+			// build up new string
+			StringBuilder sb = new StringBuilder();
+			for (String s : vals) {
+				// capitalise and get remainder
+				String cap = new String( new char[] { s.charAt(0) } ).toUpperCase();
+				String trail = s.substring(1);
+				// append
+				sb.append(cap);
+				sb.append(trail);
+				sb.append(SPACE);
+			}
+
+			rc = sb.toString().trim();
+		}
+
+		return rc;
+	}
+
+	protected static String getCapitalisedProduct(String value) {
+		String rc = "";
+
+		if (null != value) {
+			// normalise to lowercase
+			rc = capitaliseAll(value);
+		} else {
+			rc = value;
+		}
+
+		return rc;
+	}
+	/**
+	 * turn leading char to lowercase - eg MyProp becomes myProp
+	 *
+	 * @param value
+	 * @return
+	 */
+	protected static String getLowercased(String value) {
+		String rc = "";
+
+		if (null != value) {
+			// normalise to lowercase
+			String remainder = value.substring(1);
+			char c = value.charAt(0);
+			rc = String.valueOf(c).toLowerCase() + remainder;
+						
+		} else {
+			rc = value;
+		}
+
+		return rc;
+	}
+	public static <T> T[] arrayMerge(T[]... arrays)
+	{
+		// Determine required size of new array
+
+		int count = 0;
+	    for (T[] array : arrays)
+	    {
+			count += array.length;
+		}
+
+		// create new array of required class
+
+		@SuppressWarnings("unchecked")
+		T[] mergedArray = (T[]) Array.newInstance(
+	       arrays[0][0].getClass(),count);
+
+		// Merge each array into new array
+
+		int start = 0;
+	    for (T[] array : arrays)
+	    {
+	        System.arraycopy(array, 0,
+	           mergedArray, start, array.length);
+			start += array.length;
+		}
+		return (T[]) mergedArray;
+	}
+
+	public static String truncate(String text, int length) {
+		String s = text;
+		if (null != text && length >= 0) {
+			s = text.substring(0, Math.min(text.length(), length));
+		}
+		return s;
+	}
+
+	public static String UppercaseFirstLetters(String str)  
+	{ 
+        String   wordStr = WordUtils.capitalizeFully(str); 
+        			
+        if(wordStr!=null)
+		// 1. Tv is showing up in the listings too, this needs to be all upper case 
+		wordStr = wordStr.replaceAll("^(?i)tv ", "TV "); // begins with
+		wordStr = wordStr.replaceAll(" (?i)tv ", " TV "); // middle
+		wordStr = wordStr.replaceAll(" (?i)tv$", " TV"); // ends with
+		//System.out.println("1: " + serviceProviderName);
+		
+		// 2. The letter after an ampersand should be capitalized. An example of this is A&E. 
+		// need to preserve spaces between & and letter
+		Matcher matcher = PATTERN.matcher(wordStr);
+		if (matcher != null) {
+			StringBuffer stringBuffer = new StringBuffer();
+			while(matcher.find()) {
+				if ((matcher.group(1) != null) && (matcher.group(2) != null)) {
+					matcher.appendReplacement(stringBuffer,
+						"&" + matcher.group(1) + matcher.group(2).toUpperCase());
+				}
+			}
+			matcher.appendTail(stringBuffer);
+			wordStr = stringBuffer.toString();
+			//System.out.println("2: " + serviceProviderName);
+		}
+		
+		// 3. A combination of CE with spaces before and after should always be capitalized. 
+		wordStr = wordStr.replaceAll("(?i) ce ", " CE ");
+		//System.out.println("3: " + serviceProviderName);
+		
+		// 4. The word "and" with spaces before and after should always appear as lower case. 
+		wordStr = wordStr.replaceAll("(?i) AND ", " and ");		
+		//System.out.println("4: " + serviceProviderName);
+		
+		// 5. GE as a stand alone set of two letters should always appear as upper case (e.g. GE Consumer Service)
+		wordStr = wordStr.replaceAll("^(?i)ge ", "GE "); // begins with
+		wordStr = wordStr.replaceAll(" (?i)ge ", " GE "); // middle
+		wordStr = wordStr.replaceAll(" (?i)ge$", " GE"); // ends with
+		//System.out.println("5: " + serviceProviderName);			
+		//System.out.println("PJM: get fixed SP name from SB is " + serviceProviderName);
+	        
+	   return wordStr; 
+
+	} 
+	/**
+	 * @TODO UNTESTED UOC as of May 10 2012
+	 * populate a context from a list of objects, possibly duplicate types - may
+	 * have multiple customers say
+	 * 
+	 * @param context
+	 * @param model
+	 */
+	public static Map<String, Object> NestedMapFromObject(Object model) {
+
+		Map<String, Object> context = new HashMap<String, Object>();
+		Mapper mapper = getFormatter().new Mapper();
+
+		if (null != model) {
+
+			Map<String, Integer> typeCount = new HashMap<String, Integer>();
+
+			if (model instanceof Map) {
+				// not entirely neccessary now that you can iterate over
+				// collections
+				// http://velocity.apache.org/engine/releases/velocity-1.7/vtl-reference-guide.html
+				Map m = (Map) model;
+				Set keys = m.keySet();
+				for (Object key : keys) {
+					if (key instanceof String)
+						mapper.populate(context, (String) key, m);
+				}
+			} else if (model instanceof String) {
+				logger.debug("Cant put string in context : please place in map under a key and pass it instead : "
+				        + model);
+			} else {
+				// use simple name for the property
+				String name = model.getClass().getSimpleName();
+				// add the raw object
+				context.put(name, model);
+				// get all the methods - this will include all kinds of stuff
+				Method[] props = model.getClass().getMethods();
+
+				// count if we have seen this object type before so we can name
+				// the property
+				String count = "";
+				if (typeCount.get(name) != null)
+					count = String.valueOf(typeCount.get(name));
+
+				// not entirely neccessary now that you can call object.getter
+				// in template
+				boolean foundGetter = false;
+				for (Method m : props) {
+					// if its a public getter
+					// if (m.isAccessible() && m.getName().startsWith("get") ){
+					if (m.getName().startsWith("get")) {
+						java.lang.reflect.Type[] pType = m
+						        .getGenericParameterTypes();
+						// and has no params
+						if (pType.length == 0) {
+							try {
+
+								foundGetter = true;
+								String propName = m.getName().substring(3);// length
+								                                           // of
+								                                           // "get"
+								// get the value of the getter
+								Object ret = m.invoke(model, (Object[]) null);
+								// add to contextc
+								String key = name + propName + count;
+								// @TODO - widen scope here to other collections
+								// and array types
+								if (ret instanceof Map) {
+									mapper.populate(context, key, (Map) ret);
+								} else if (ret instanceof String[]) {
+									mapper.populate(context, key,
+									        (String[]) ret);
+								} else {
+									mapper.update(context, name + propName
+									        + count, ret);
+									// context.put(name+propName+count,ret);
+								}
+
+								logger.debug("Added : " + key + " - " + ret);
+
+							} catch (Exception e) {
+								// TODO Auto-generated catch block
+								logger.debug("method invoke problem : "
+								        + e.toString());
+
+							}
+						}
+
+					}
+				}
+				// if we've added some properties for this kind of object, then
+				// count them
+				// so that if we get another we can name it with a new count
+				if (foundGetter) {
+					if (typeCount.get(name) == null)
+						typeCount.put(name, 1);
+					else
+						typeCount.put(name, typeCount.get(name) + 1);
+				}
+			}
+
+		}
+
+		return context;
+	}
+
+	/**
+	 * populate a context from a simple objects/bean using getters : doesnt deal with collections. null properties not returned<br>
+	 * Returns the class and superclass properties<br>
+	 * Property names in map are lowercased - eg a property called getMyProp will be in map as "myProp"<p>
+	 * 
+	 * 
+	 * @param context
+	 * @param model
+	 */
+	public static Map<String, String> MapFromObject(Object model) {
+
+		Map<String, String> context = new HashMap<String, String>();
+		//Mapper mapper = getFormatter().new Mapper();
+
+		if (null != model) {
+
+			//Map<String, Integer> typeCount = new HashMap<String, Integer>();
+
+			// use simple name for the property
+			//String name = model.getClass().getSimpleName();
+			
+			
+			// get all the methods - this will include all kinds of stuff
+			Method[] props = model.getClass().getMethods();
+
+			// count if we have seen this object type before so we can name
+			// the property
+//			String count = "";
+//			if (typeCount.get(name) != null)
+//				count = String.valueOf(typeCount.get(name));
+
+			// not entirely neccessary now that you can call object.getter
+			// in template
+			boolean foundGetter = false;
+			for (Method m : props) {
+				// if its a public getter
+				// if (m.isAccessible() && m.getName().startsWith("get") ){
+				if (m.getDeclaringClass()!=Object.class && m.getName().startsWith("get")) {
+					java.lang.reflect.Type[] pType = m
+					        .getGenericParameterTypes();
+					// and has no params
+					if (pType.length == 0) {
+						try {
+
+							foundGetter = true;
+							String getterName = m.getName().substring(3);// length
+							                                           // of
+							                                           // "get"
+							// get the value of the getter
+							Object ret = m.invoke(model, (Object[]) null);
+							// add to contextc
+							//String key = name + propName + count;
+							// @TODO - widen scope here to other collections
+							// and array types
+							String propName = getLowercased(getterName);
+							if ( ret != null && !(ret instanceof Collection))
+								context.put(  propName , ret.toString() );
+							else
+								logger.warn("Cant handle collections or null properties (" + propName + ")");
+							
+							logger.debug("Added : " + propName + " - " + ret);
+
+						} catch (Exception e) {
+							// TODO Auto-generated catch block
+							logger.debug("method invoke problem : "
+							        + e.toString());
+
+						}
+					}
+
+				}
+			}
+			// if we've added some properties for this kind of object, then
+			// count them
+			// so that if we get another we can name it with a new count
+//			if (foundGetter) {
+//				if (typeCount.get(name) == null)
+//					typeCount.put(name, 1);
+//				else
+//					typeCount.put(name, typeCount.get(name) + 1);
+//			}
+		}
+
+		return context;
+	}
+
+}
