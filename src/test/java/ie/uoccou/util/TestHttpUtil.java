@@ -17,6 +17,7 @@ import org.powermock.modules.junit4.rule.PowerMockRule;
 
 //PowerMockRunner doesn't work with EclEmma.
 //@RunWith(PowerMockRunner.class).
+//test merge comment
 @PrepareForTest(HttpUtils.class) 
 public class TestHttpUtil {
 	@Rule
